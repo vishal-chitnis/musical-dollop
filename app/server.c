@@ -56,7 +56,18 @@ int main()
 
 	const char response[] = "+PONG\r\n";
 
-	send(socket_fd, response, strlen(response), 0);
+	char request[255];
+	while (1)
+	{
+		recv(socket_fd, (void *)request, 255, 0);
+
+		int send_status = send(socket_fd, response, strlen(response), 0);
+
+		if (send_status == -1)
+		{
+			break;
+		}
+	}
 
 	printf("Client connected\n");
 
