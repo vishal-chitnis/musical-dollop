@@ -6,6 +6,38 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <pthread.h>
+
+void handle_request(int *arg)
+{
+	int fd = *(int *)arg;
+	printf("Client connected\n");
+
+	const char response[] = "+PONG\r\n";
+	char request[255];
+
+	while (1)
+	{
+		printf("Receiving\n");
+		int r = recv(fd, (void *)request, 255, 0);
+		if (r == -1)
+		{
+			printf("Error receving: %s\n", strerror(errno));
+		}
+
+		printf("Sending\n");
+		int send_status = send(fd, response, strlen(response), 0);
+		if (send_status == -1)
+		{
+			printf("Error sending: %s\n", strerror(errno));
+			break;
+		}
+	}
+
+	close(fd);
+	free(arg);
+	pthread_exit(NULL);
+}
 
 int main() 
 {
@@ -49,28 +81,22 @@ int main()
 		return 1;
 	}
 
-	printf("Waiting for a client to connect...\n");
-	client_addr_len = sizeof(client_addr);
+	
 
-	int socket_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
 
-	const char response[] = "+PONG\r\n";
-
-	char request[255];
 	while (1)
 	{
-		recv(socket_fd, (void *)request, 255, 0);
+		printf("Waiting for a client to connect...\n");
+		client_addr_len = sizeof(client_addr);
+		int socket_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
 
-		int send_status = send(socket_fd, response, strlen(response), 0);
-
-		if (send_status == -1)
-		{
-			break;
-		}
+		pthread_t pthread;
+		pthread_create(&pthread, NULL, (void*) handle_request, &socket_fd);
+		pthread_detach(pthread);
+		printf("Next request\n");
 	}
 
-	printf("Client connected\n");
-
+	printf("Closing connection\n");
 	close(server_fd);
 
 	return 0;
