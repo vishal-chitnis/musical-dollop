@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -8,30 +9,65 @@
 #include <unistd.h>
 #include <pthread.h>
 
+
+#include "redis.h"
+
+
 void handle_request(int *arg)
 {
 	int fd = *(int *)arg;
-	printf("Client connected\n");
+	printf("Client connected: %d\n", fd);
 
-	const char response[] = "+PONG\r\n";
+	
 	char request[255];
 
 	while (1)
 	{
+		char response[256];
+
 		printf("Receiving\n");
 		int r = recv(fd, (void *)request, 255, 0);
-		if (r == -1)
+		
+		printf("Received: %s(%d) -- (%d)\n", request, strlen(request), fd);
+		if (strlen(request) == 0)
 		{
-			printf("Error receving: %s\n", strerror(errno));
-		}
-
-		printf("Sending\n");
-		int send_status = send(fd, response, strlen(response), 0);
-		if (send_status == -1)
-		{
-			printf("Error sending: %s\n", strerror(errno));
+			printf("Ending the connection: %d\n", fd);
 			break;
 		}
+
+		// Read the command 
+		redis_command *command = get_redis_command(request);
+
+		if (command->type == AGGREGATE)
+		{
+			if (command->child_command == NULL)
+			{
+				printf("Error parsing aggregate command\n");
+				exit(1);
+			}
+			redis_command *subcommand = (redis_command *) command->child_command;
+
+			if (strcmp(subcommand->string_command, "ECHO") == 0)
+			{
+				redis_command *next_command = (redis_command *) subcommand->next_command;
+				build_redis_response(response, next_command->original_command);
+			}
+			else
+			{
+				strcpy(response, "+PONG\r\n");
+			}
+		}
+		else 
+		{
+			strcpy(response, "+PONG\r\n");
+		}
+
+		// TODO: recursively free the memory
+		free(command);
+
+		printf("Sending: %s\n", response);
+		int send_status = send(fd, response, strlen(response), 0);
+		
 	}
 
 	close(fd);
@@ -80,9 +116,6 @@ int main()
 		printf("Listen failed: %s \n", strerror(errno));
 		return 1;
 	}
-
-	
-
 
 	while (1)
 	{
