@@ -69,8 +69,8 @@ redis_command* get_redis_command(char *command_string)
         char t;
         sscanf(command_string, "%c%d\r\n", &t, &command->length);
 
-        command->string_command = malloc(sizeof(char) * (command->length + 1));
-        command->original_command = malloc(sizeof(char) * (command->length + 1));
+        command->string_command = malloc(sizeof(char) * (command->length));
+        command->original_command = malloc(sizeof(char) * (command->length));
 
         char *next_command = get_next_section(command_string);
 
